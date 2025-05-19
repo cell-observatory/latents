@@ -190,7 +190,9 @@ class UNetMidBlock(nn.Module):
         super(UNetMidBlock, self).__init__()
 
         if config is None:
-            config = UNetMidBlockConfig()
+            self.config = UNetMidBlockConfig()
+        else:
+            self.config = config
 
         self.attentions = nn.ModuleList()
         for i in range(n_attentions):
@@ -200,8 +202,8 @@ class UNetMidBlock(nn.Module):
                     heads=1,
                     dim_head=h_channels,
                     rescale_output_factor=1,
-                    eps=config.norm_eps,
-                    norm_num_groups=config.norm_num_groups,
+                    eps=self.config.norm_eps,
+                    norm_num_groups=self.config.norm_num_groups,
                     spatial_norm_dim=None,
                     residual_connection=True,
                     bias=True,
@@ -211,14 +213,24 @@ class UNetMidBlock(nn.Module):
             )
 
         self.resnets = nn.ModuleList()
-        for i in range(config.n_resnet_blocks):
-            self.resnets.append(ResnetBlock(h_channels, h_channels, config.resnet_block_config))
+        for i in range(self.config.n_resnet_blocks):
+            self.resnets.append(ResnetBlock(h_channels, h_channels, self.config.resnet_block_config))
 
     def forward(self, x):
         x = self.resnets[0](x)
         for attention, resnet in zip(self.attentions, self.resnets[1:]):
             if attention is not None:
-                x = attention(x)
+                # Handle 3D data by reshaping for attention
+                if len(x.shape) == 5:  # 3D case: (B, C, D, H, W)
+                    b, c, d, h, w = x.shape
+                    # Reshape to (B, C, D*H*W) for attention
+                    x_reshaped = x.view(b, c, -1)
+                    # Apply attention
+                    x_reshaped = attention(x_reshaped)
+                    # Reshape back to (B, C, D, H, W)
+                    x = x_reshaped.view(b, c, d, h, w)
+                else:  # 2D case: (B, C, H, W)
+                    x = attention(x)
             if resnet is not None:
                 x = resnet(x)
         return x
