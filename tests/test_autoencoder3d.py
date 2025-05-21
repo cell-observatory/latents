@@ -7,7 +7,9 @@ from models.autoencoder import (
     DownEncoderBlock, DownEncoderBlockConfig,
     UpDecoderBlock, UpDecoderBlockConfig,
     UNetMidBlock, UNetMidBlockConfig,
-    Encoder, EncoderConfig
+    Encoder, EncoderConfig,
+    Decoder, DecoderConfig,
+    AutoEncoder, AutoEncoderConfig
 )
 
 class TestAutoEncoder3D(unittest.TestCase):
@@ -82,7 +84,7 @@ class TestAutoEncoder3D(unittest.TestCase):
         y = net(x)
         self.assertEqual(y.shape, (1, 512, 8, 8, 8))
 
-    def test_encoder(self):
+    def test_encoder3D(self):
         resnet_block_config = ResnetBlockConfig(dim=3, norm_num_groups=1)
         downsample_config = DownsampleConfig(dim=3)
         unet_mid_block_config = UNetMidBlockConfig(resnet_block_config=resnet_block_config)
@@ -97,7 +99,53 @@ class TestAutoEncoder3D(unittest.TestCase):
         y = encoder(x)
         self.assertEqual(y.shape, (1, 8, 8, 8, 8))
 
-    # TODO: test decoder
+    def test_decoder3D(self):
+        resnet_block_config = ResnetBlockConfig(dim=3, norm_num_groups=1)
+        upsample_config = UpsampleConfig(dim=3)
+        unet_mid_block_config = UNetMidBlockConfig(resnet_block_config=resnet_block_config)
+        up_decoder_block_config = UpDecoderBlockConfig(resnet_block_config=resnet_block_config, upsample_config=upsample_config)
+        decoder_config = DecoderConfig(up_decoder_block_config=up_decoder_block_config,
+                                       unet_mid_block_config=unet_mid_block_config,
+                                       conv_in_dim=3,
+                                       conv_out_dim=3,
+                                       )
+        decoder = Decoder(in_channels=4, out_channels=3, config=decoder_config).to(self.device)
+        x = torch.randn((1, 4, 8, 8, 8)).to(self.device)
+        y = decoder(x)
+        self.assertEqual(y.shape, (1, 3, 64, 64, 64))
+
+    def test_autoencoder3D(self):
+        resnet_block_config = ResnetBlockConfig(dim=3)
+        downsample_config = DownsampleConfig(dim=3)
+        upsample_config = UpsampleConfig(dim=3)
+        unet_mid_block_config = UNetMidBlockConfig(resnet_block_config=resnet_block_config)
+        up_decoder_block_config = UpDecoderBlockConfig(resnet_block_config=resnet_block_config,
+                                                       upsample_config=upsample_config,
+                                                       )
+        down_encoder_block_config = DownEncoderBlockConfig(resnet_block_config=resnet_block_config,
+                                                          downsample_config=downsample_config,
+                                                          )
+        encoder_config = EncoderConfig(down_encoder_block_config=down_encoder_block_config,
+                                       unet_mid_block_config=unet_mid_block_config,
+                                       conv_in_dim=3,
+                                       conv_out_dim=3,
+                                       )
+        decoder_config = DecoderConfig(up_decoder_block_config=up_decoder_block_config,
+                                       unet_mid_block_config=unet_mid_block_config,
+                                       conv_in_dim=3,
+                                       conv_out_dim=3,
+                                       )
+        autoencoder_config = AutoEncoderConfig(encoder_config=encoder_config,
+                                               decoder_config=decoder_config,
+                                               quant_conv_dim=3,
+                                               post_quant_conv_dim=3,
+                                               )
+        autoencoder = AutoEncoder(config=autoencoder_config).to(self.device)
+        x = torch.randn((1, 3, 64, 64, 64)).to(self.device)
+        y, mean, logvar = autoencoder(x)
+        self.assertEqual(y.shape, (1, 3, 64, 64, 64))
+        self.assertEqual(mean.shape, (1, 4, 8, 8, 8))
+        self.assertEqual(logvar.shape, (1, 4, 8, 8, 8))
 
 if __name__ == '__main__':
     unittest.main()

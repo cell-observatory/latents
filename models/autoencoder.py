@@ -335,7 +335,7 @@ class Encoder(nn.Module):
 
 @dataclass
 class DecoderConfig:
-    updecoder_block_config: UpDecoderBlockConfig = field(default_factory=UpDecoderBlockConfig)
+    up_decoder_block_config: UpDecoderBlockConfig = field(default_factory=UpDecoderBlockConfig)
     unet_mid_block_config: UNetMidBlockConfig = field(default_factory=UNetMidBlockConfig)
     n_attentions: int = 1
     conv_in_kernel_size: int = 3
@@ -389,7 +389,7 @@ class Decoder(nn.Module):
         self.up_blocks = nn.ModuleList()
         for i in range(len(h_channels)):
             self.up_blocks.append(
-                UpDecoderBlock(h_channels[i], n_upsamplers=n_upsamplers[i], config=config.updecoder_block_config))
+                UpDecoderBlock(h_channels[i], n_upsamplers=n_upsamplers[i], config=config.up_decoder_block_config))
 
         self.mid_block = UNetMidBlock(
             n_attentions=config.n_attentions,

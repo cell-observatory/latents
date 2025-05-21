@@ -9,7 +9,7 @@ from models.autoencoder import (
 class TestAutoEncoder2DAgainstDiffusers(unittest.TestCase):
     def setUp(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        url = "https://huggingface.co/stabilityai/sd-vae-ft-mse-original/blob/main/vae-ft-mse-840000-ema-pruned.safetensors"  # can also be a local file
+        url = "https://huggingface.co/stabilityai/sd-vae-ft-mse-original/blob/main/vae-ft-mse-840000-ema-pruned.safetensors"
         self.model = AutoencoderKL.from_single_file(url).to(self.device)
         torch.manual_seed(123)
 
@@ -91,7 +91,7 @@ class TestAutoEncoder2DAgainstDiffusers(unittest.TestCase):
         x = torch.rand(1, 512, 8, 8).to(self.device)
         self.check_output(net, test, x)
 
-    def test_encoder(self):
+    def test_encoder2D(self):
         test = self.model.encoder
         net = Encoder().to(self.device)
         result = net.load_state_dict(test.state_dict())
@@ -109,7 +109,7 @@ class TestAutoEncoder2DAgainstDiffusers(unittest.TestCase):
         x = torch.rand(1,4,8,8).to(self.device)
         self.check_output(net, test, x)
 
-    def test_autoencoder(self):
+    def test_autoencoder2D(self):
         test = self.model
         net = AutoEncoder().to(self.device)
         result = net.load_state_dict(test.state_dict())
@@ -123,6 +123,31 @@ class TestAutoEncoder2DAgainstDiffusers(unittest.TestCase):
         y1 = test(x).sample
         y2, _, _ = net(x)
         self.assertTrue(torch.allclose(y1, y2, atol=.1), "VAE output should be roughly similar (up to random noise in the embedding)")
+    
+    def test_network_gradients(self):
+        model = AutoEncoder().to(self.device)
+        x = torch.randn((1, 3, 64, 64), requires_grad=True).to(self.device)
+        x.retain_grad()
+
+        # Forward pass through entire network
+        y, mean, logvar = model(x)
+        
+        # Dummy loss
+        loss = y.sum() - 0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp())
+        
+        # Backward pass
+        loss.backward()
+        
+        # Check if gradients exist and are not None for input
+        self.assertIsNotNone(x.grad, "Input gradient is None")
+        self.assertFalse(torch.allclose(x.grad, torch.zeros_like(x.grad)), 
+                        "Input gradient is zero")
+        
+        # Check if gradients flow through all parameters in the model
+        for name, param in model.named_parameters():
+            self.assertIsNotNone(param.grad, f"Gradient is None for {name}")
+            self.assertFalse(torch.allclose(param.grad, torch.zeros_like(param.grad)), 
+                           f"Gradient is zero for {name}")
 
 if __name__ == '__main__':
     unittest.main()
