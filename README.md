@@ -1,6 +1,6 @@
 # Latents: Autoencoder Training
 
-This repository implements various compression techniques (VAE, VQ-VAE) for 3D volumetric data using containerized training environments.
+This repository implements various compression techniques (VAE, VQ-VAE) for volumetric data using containerized training environments.
 
 ## Features
 
