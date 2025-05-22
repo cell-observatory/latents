@@ -432,12 +432,6 @@ class Decoder(nn.Module):
 class AutoEncoderConfig:
     encoder_config: EncoderConfig = field(default_factory=EncoderConfig)
     decoder_config: DecoderConfig = field(default_factory=DecoderConfig)
-    conv_in_kernel_size: int = 3
-    conv_in_stride: int = 1
-    conv_in_padding: int = 1
-    conv_out_kernel_size: int = 3
-    conv_out_stride: int = 1
-    conv_out_padding: int = 1
     quant_conv_in_channels: int = 8
     quant_conv_out_channels: int = 8
     quant_conv_padding: int = 0

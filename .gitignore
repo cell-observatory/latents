@@ -67,3 +67,6 @@ __pypackages__/
 
 
 .idea/
+.devcontainer/.env
+runs/
+checkpoints/
