@@ -223,16 +223,22 @@ class UNetMidBlock(nn.Module):
                 # Handle 3D data by reshaping for attention
                 if len(x.shape) == 5:  # 3D case: (B, C, D, H, W)
                     b, c, d, h, w = x.shape
-                    # Reshape to (B, C, D*H*W) for attention
-                    x_reshaped = x.view(b, c, -1)
+                    # Reshape to (B, D*H*W, C) for attention
+                    x_reshaped = x.permute(0, 2, 3, 4, 1).reshape(b, d*h*w, c)
                     # Apply attention
                     x_reshaped = attention(x_reshaped)
                     # Reshape back to (B, C, D, H, W)
-                    x = x_reshaped.view(b, c, d, h, w)
+                    x = x_reshaped.reshape(b, d, h, w, c).permute(0, 4, 1, 2, 3).contiguous()
                 else:  # 2D case: (B, C, H, W)
-                    x = attention(x)
-            if resnet is not None:
-                x = resnet(x)
+                    b, c, h, w = x.shape
+                    # Reshape to (B, H*W, C) for attention
+                    x_reshaped = x.permute(0, 2, 3, 1).reshape(b, h*w, c)
+                    # Apply attention
+                    x_reshaped = attention(x_reshaped)
+                    # Reshape back to (B, C, H, W)
+                    x = x_reshaped.reshape(b, h, w, c).permute(0, 3, 1, 2).contiguous()
+                    if resnet is not None:
+                        x = resnet(x)
         return x
 
 @dataclass

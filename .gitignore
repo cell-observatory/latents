@@ -70,3 +70,6 @@ __pypackages__/
 .devcontainer/.env
 runs/
 checkpoints/
+
+# ignore exploratory data analysis
+eda/

@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
+import torch.multiprocessing as mp
 
 import ray
 from ray import train
@@ -83,6 +84,11 @@ def get_model_config():
 
 def train_func(config: Dict[str, Any]):
     """Training function for Ray Train."""
+    torch.set_float32_matmul_precision("high")
+
+    # Set multiprocessing start method to spawn
+    mp.set_start_method('spawn', force=True)
+
     # Initialize TensorBoard
     log_dir = os.path.join("runs", f"run_{time.strftime('%Y%m%d_%H%M%S')}")
     writer = SummaryWriter(log_dir=log_dir)
@@ -122,7 +128,8 @@ def train_func(config: Dict[str, Any]):
         batch_size=config["batch_size"],
         shuffle=True,
         num_workers=config["num_workers"],
-        pin_memory=True
+        pin_memory=True,
+        multiprocessing_context='spawn'  # Explicitly use spawn
     )
     dataloader = prepare_data_loader(dataloader)
 
@@ -138,7 +145,7 @@ def train_func(config: Dict[str, Any]):
             optimizer.zero_grad()
 
             # Forward pass with mixed precision
-            with autocast(device_type='cuda'):
+            with autocast(device_type='cuda', dtype=torch.bfloat16):
                 output, mean, logvar = model(data)
                 # Reconstruction loss
                 recon_loss = nn.MSELoss()(output, data)
@@ -197,6 +204,11 @@ def train_func(config: Dict[str, Any]):
 def main():
     parser = argparse.ArgumentParser(description='Train 3D Autoencoder with Ray')
 
+    # Data parameters
+    parser.add_argument('--data_path', type=str, default=r'/CellObservatoryData/20250324_mem_histone', help='Path to the dataset')
+    parser.add_argument('--time_window', type=int, default=1, help='Time window for the dataset')
+    parser.add_argument('--crop_size', type=tuple, default=(128, 128, 128), help='Crop size for the dataset')
+
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=4, help='Batch size per GPU')
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
@@ -217,16 +229,33 @@ def main():
 
     args = parser.parse_args()
 
-    # Initialize Ray
-    ray.init()
+    # Initialize Ray with explicit resource configuration
+    if args.num_gpus == -1:
+        args.num_gpus = torch.cuda.device_count()
+
+    # Set training mode based on GPU availability
+    use_gpu = args.num_gpus > 0 and torch.cuda.is_available()
+    if not use_gpu:
+        logger.info("No GPUs available. Running in CPU-only mode.")
+        args.num_gpus = 1  # Use 1 worker for CPU training
+        args.num_cpus = max(1, args.num_cpus)  # Ensure at least 1 CPU
+
+    # Initialize Ray with explicit resource configuration
+    ray.init(
+        num_cpus=args.num_cpus if args.num_cpus > 0 else None,
+        num_gpus=args.num_gpus if use_gpu else 0,
+        local_mode=args.num_gpus == 0,  # Use local mode for CPU-only training
+        ignore_reinit_error=True,
+        include_dashboard=True,
+        dashboard_host="0.0.0.0",  # Allow external access to dashboard
+        dashboard_port=8265,  # Default Ray dashboard port
+    )
+
+    logger.info(f"Ray initialized with {args.num_cpus if args.num_cpus > 0 else 'all'} CPUs and {args.num_gpus if use_gpu else 0} GPUs")
 
     # Create checkpoint and log directories
     os.makedirs('checkpoints', exist_ok=True)
     os.makedirs(args.log_dir, exist_ok=True)
-
-    # Determine number of GPUs
-    if args.num_gpus == -1:
-        args.num_gpus = torch.cuda.device_count()
 
     # Base training configuration
     train_config = {
@@ -238,9 +267,9 @@ def main():
         "num_workers": args.num_workers,
         "log_interval": args.log_interval,
         "save_interval": args.save_interval,
-        "data_path": "data/membrane_histone_dataset",
-        "time_window": 3,
-        "crop_size": (64, 64, 64),
+        "data_path": args.data_path,
+        "time_window": args.time_window,
+        "crop_size": args.crop_size,
         "log_dir": args.log_dir,
     }
 
@@ -285,8 +314,11 @@ def main():
             param_space=train_config,
             scaling_config=ScalingConfig(
                 num_workers=args.num_gpus,
-                use_gpu=True,
-                resources_per_worker={"GPU": 1, "CPU": args.num_cpus // args.num_gpus if args.num_cpus > 0 else 1},
+                use_gpu=use_gpu,
+                resources_per_worker={
+                    "GPU": 1 if use_gpu else 0,
+                    "CPU": args.num_cpus
+                },
             ),
         )
 
@@ -303,8 +335,11 @@ def main():
             train_loop_config=train_config,
             scaling_config=ScalingConfig(
                 num_workers=args.num_gpus,
-                use_gpu=True,
-                resources_per_worker={"GPU": 1, "CPU": args.num_cpus // args.num_gpus if args.num_cpus > 0 else 1},
+                use_gpu=use_gpu,
+                resources_per_worker={
+                    "GPU": 1 if use_gpu else 0,
+                    "CPU": args.num_cpus
+                },
             ),
             run_config=ray.air.RunConfig(
                 name="3d_autoencoder",
