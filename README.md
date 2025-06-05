@@ -40,97 +40,17 @@ Then open your browser at `http://localhost:6006`
 
 ### Hyperparameter Tuning
 
-```bash
-python train_ray.py --tune --epochs 100 --num_gpus 8
-```
-
-This will run Bayesian optimization to find optimal hyperparameters:
-- Learning rate
-- Weight decay
-- KL divergence weight
-- Batch size
-
-TensorBoard will automatically show the results of all trials.
+[TODO]
 
 ### HPC Cluster Submission
 
 #### SLURM with Apptainer
 
-Create a submission script (e.g., `submit_slurm.sh`):
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=3d_autoencoder
-#SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --gpus-per-node=8
-#SBATCH --ntasks-per-node=8
-#SBATCH --time=24:00:00
-#SBATCH --output=%j.out
-#SBATCH --error=%j.err
-
-# Load required modules (if any)
-module load cuda/12.8
-
-# Run training with Apptainer
-apptainer run --nv \
-    --bind $PWD:/workspace \
-    --bind /tmp:/tmp \
-    develop_torch_cuda_12_8.sif \
-    python train_ray.py \
-    --batch_size 4 \
-    --epochs 100 \
-    --num_gpus 8 \
-    --log_dir runs/slurm_${SLURM_JOB_ID}
-```
-
-Submit the job:
-```bash
-sbatch submit_slurm.sh
-```
-
-To view TensorBoard on the cluster:
-1. SSH into the cluster with port forwarding:
-```bash
-ssh -L 6006:localhost:6006 username@cluster
-```
-
-2. Start TensorBoard on the compute node:
-```bash
-tensorboard --logdir runs --bind_all
-```
-
-3. Open your browser at `http://localhost:6006`
+[TODO]
 
 #### LSF with Apptainer
 
-Create a submission script (e.g., `submit_lsf.sh`):
-
-```bash
-#!/bin/bash
-#BSUB -J 3d_autoencoder
-#BSUB -q gpu
-#BSUB -n 8
-#BSUB -R "span[ptile=8]"
-#BSUB -gpu "num=1:mode=exclusive_process"
-#BSUB -W 24:00
-#BSUB -o %J.out
-#BSUB -e %J.err
-
-# Run training with Apptainer
-apptainer run --nv \
-    --bind $PWD:/workspace \
-    develop_torch_cuda_12_8.sif \
-    python train_ray.py \
-    --batch_size 4 \
-    --epochs 100 \
-    --num_gpus 8
-```
-
-Submit the job:
-```bash
-bsub < submit_lsf.sh
-```
+[TODO]
 
 ## Configuration
 

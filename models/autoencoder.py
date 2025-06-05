@@ -115,10 +115,35 @@ class Upsample(nn.Module):
             self.conv = nn.Conv3d(in_channels, out_channels, config.kernel_size, config.stride, config.padding)
         else:
             raise NotImplementedError(f"{config.dim}D upsampling is not supported.")
+        
+        # int32 sets a hard limit on max number of elements in a tensor
+        # so apply chunked upsampling if that's the case
+        self.max_allowed_numel = 2**31 - 1
 
     def forward(self, x):
-        x = self.upsample(x)
+        if x.numel() * self.config.scale_factor**3 > self.max_allowed_numel:
+            return self._forward_in_chunks(x)
+        else:
+            x = self.upsample(x)
         return self.conv(x)
+    
+    def _forward_in_chunks(self, x):
+        """
+        Process each sample in the batch independently to avoid tensor size overflow.
+        Assumes each sample fits within CUDA limits.
+        """
+        chunks = x.unbind(dim=0)  # Split batch into individual samples
+        outputs = []
+
+        for i, sample in enumerate(chunks):
+            sample = sample.unsqueeze(0)  # Add batch dim back: [1, C, D, H, W]
+            upsampled = self.upsample(sample)
+            convolved = self.conv(upsampled)
+            outputs.append(convolved)
+
+        return torch.cat(outputs, dim=0)  # Reassemble batch
+
+
 
 @dataclass
 class DownEncoderBlockConfig:

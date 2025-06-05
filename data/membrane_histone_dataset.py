@@ -18,7 +18,7 @@ class MembraneHistoneDataset(torch.utils.data.Dataset):
         """
         self.data_path = Path(data_path)
         self.transform = transform
-
+        
         # Find all .zarr files in subdirectories
         self.data_files = sorted(list(self.data_path.glob('*/*/*.zarr')))
         if not self.data_files:
@@ -44,27 +44,14 @@ class MembraneHistoneDataset(torch.utils.data.Dataset):
                 if len(shape) != 5:  # [T,D,H,W,C]
                     logger.warning(f"Skipping store {file_path} with invalid shape {shape}. Expected 5 dimensions [T,D,H,W,C]")
                     continue
-
-                # Validate dimensions against crop size
-                if any(c > s for c, s in zip(self.crop_size, shape[1:4])):
-                    logger.warning(f"Skipping store {file_path} with insufficient spatial dimensions. "
-                                 f"Shape: {shape}, Required crop: {self.crop_size}")
-                    continue
-
-                max_time = shape[0]
-                if max_time >= self.time_window:
-                    self.stores.append(store)
-                    logger.info(f"Added store {file_path} with shape {shape}")
                 else:
-                    logger.warning(f"Skipping store {file_path} with insufficient time points "
-                                 f"(has {max_time}, needs at least {self.time_window})")
+                    self.stores.append(store)
             except Exception as e:
                 logger.error(f"Error opening store {file_path}: {str(e)}")
                 continue
-
+        
         if not self.stores:
-            raise ValueError(f"No valid stores found with sufficient dimensions for "
-                           f"time_window={self.time_window} and crop_size={self.crop_size}")
+            raise ValueError(f"No valid stores found with the correct dimensions")
 
     def __len__(self):
         return len(self.stores)
@@ -80,5 +67,6 @@ class MembraneHistoneDataset(torch.utils.data.Dataset):
         return data
 
 if __name__ == "__main__":
-    data_path = "/CellObservatoryData/20250324_mem_histone/"
+    data_path = '/CellObservatoryData/20250324_mem_histone'
     dataset = MembraneHistoneDataset(data_path=data_path)
+    print(f"MembraneHistoneDataset constructed with {len(dataset)} many stores")
