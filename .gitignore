@@ -73,3 +73,6 @@ checkpoints/
 
 # ignore exploratory data analysis
 eda/
+
+outputs/
+job_script.sh
