@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Job allocation parameters
-NUM_CORES=4
+NUM_CORES=2
 GPU_NUM=1
 QUEUE="gpu_h200"
 JOB_NAME="autoencoder_train"
@@ -44,7 +44,7 @@ apptainer exec --nv \\
     --bind \$PWD:/workspace \\
     ../develop_torch_cuda_12_8.sif \\
     python train.py \\
-    --num_workers 4 \\
+    --num_workers $NUM_CORES \\
     --log_dir "$RUN_DIR" \\
     --checkpoint_dir "$RUN_DIR/checkpoints"
 

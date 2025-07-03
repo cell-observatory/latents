@@ -41,7 +41,10 @@ def get_dataloader(config: Dict[str, Any]):
         batch_size=config["batch_size"],
         shuffle=True,
         num_workers=config["num_workers"],
-        multiprocessing_context='spawn'
+        multiprocessing_context='spawn',
+        pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=config["prefetch_factor"]
     )
     return dataloader
 
@@ -231,11 +234,12 @@ def main():
     parser.add_argument('--data_path', type=str, default=r'/CellObservatoryData/20250324_mem_histone', help='Path to the dataset')
     parser.add_argument('--time_window', type=int, default=1, help='Time window for the dataset')
     parser.add_argument('--crop_size', type=tuple, default=(128, 128, 128), help='Crop size for the dataset')
-    parser.add_argument('--num_workers', type=int, default=4, help='Number of workers for the dataset')
+    parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for the dataset')
+    parser.add_argument('--prefetch_factor', type=int, default=2, help='Prefetch factor for the dataset')
 
     # Training parameters
-    parser.add_argument('--batch_size', type=int, default=4, help='Batch size per GPU')
-    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=6, help='Batch size per GPU')
+    parser.add_argument('--epochs', type=int, default=10000, help='Number of epochs')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-5, help='Weight decay')
     parser.add_argument('--kl_weight', type=float, default=0.1, help='KL divergence weight')
@@ -256,6 +260,7 @@ def main():
         "time_window": args.time_window,
         "crop_size": args.crop_size,
         "num_workers": args.num_workers,
+        "prefetch_factor": args.prefetch_factor,
 
         # Training parameters
         "batch_size": args.batch_size,
